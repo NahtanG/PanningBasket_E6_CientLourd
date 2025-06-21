@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, time
 from db.database import get_trainings_for_week, add_training, delete_training, update_training, get_trainings_for_month
 from models.training import Training
 from utils.date_utils import get_week_dates
-from export.pdf_exporter import export_trainings_to_pdf
+from exporter.pdf_exporter import export_trainings_to_pdf
 
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
