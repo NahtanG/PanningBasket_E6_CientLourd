@@ -32,23 +32,60 @@ class WeeklyPlanner(tk.Frame):
         return self.category_colors[category]
 
     def init_ui(self):
-        self.header = tk.Frame(self)
+        self.header = tk.Frame(self, bg="#f7f7f9")
         self.header.pack(fill="x")
 
         self.header.grid_columnconfigure(0, weight=1)
         self.header.grid_columnconfigure(1, weight=2)
         self.header.grid_columnconfigure(2, weight=1)
 
-        self.prev_btn = tk.Button(self.header, text="<", command=self.prev_week)
+        # Boutons navigation épurés
+        nav_btn_style = {
+            "font": ("Segoe UI", 14, "bold"),
+            "bg": "#f7f7f9",
+            "fg": "#4a5a6a",
+            "activebackground": "#e0e4ea",
+            "activeforeground": "#2d3a4a",
+            "bd": 0,
+            "relief": "flat",
+            "width": 2,
+            "cursor": "hand2",
+            "highlightthickness": 0,
+            "highlightbackground": "#f7f7f9"
+        }
+        self.prev_btn = tk.Button(self.header, text="←", command=self.prev_week, **nav_btn_style)
         self.prev_btn.grid(row=0, column=0, sticky="w", padx=10)
 
-        self.month_year_label = tk.Label(self.header, font=("Segoe UI", 14, "bold"))
+        # Mois/année stylisé
+        self.month_year_label = tk.Label(
+            self.header,
+            font=("Segoe UI", 20, "bold"),
+            fg="#2d3a4a",
+            bg="#f7f7f9",
+            pady=8
+        )
         self.month_year_label.grid(row=0, column=1, sticky="nsew", padx=10)
 
-        right_btns = tk.Frame(self.header)
-        self.export_btn = tk.Button(right_btns, text="Exporter PDF", command=self.export_pdf)
+        right_btns = tk.Frame(self.header, bg="#f7f7f9")
+        self.export_btn = tk.Button(
+            right_btns,
+            text="Exporter PDF",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f7f7f9",
+            fg="#4a5a6a",
+            activebackground="#e0e4ea",
+            activeforeground="#2d3a4a",
+            bd=0,
+            relief="flat",
+            padx=10,
+            pady=2,
+            cursor="hand2",
+            highlightthickness=0,
+            highlightbackground="#f7f7f9",
+            command=self.export_pdf
+        )
         self.export_btn.pack(side="left", padx=5)
-        self.next_btn = tk.Button(right_btns, text=">", command=self.next_week)
+        self.next_btn = tk.Button(right_btns, text="→", command=self.next_week, **nav_btn_style)
         self.next_btn.pack(side="left", padx=5)
         right_btns.grid(row=0, column=2, sticky="e", padx=10)
 
@@ -73,15 +110,37 @@ class WeeklyPlanner(tk.Frame):
         self.month_year_label.config(text=f"{month_name} {year}")
 
         self.slots = {}
-        start_time = time(8, 0)
-        end_time = time(22, 0)
         week_dates = get_week_dates(self.current_date)
         slot_height = 40
         slot_width = 120
 
+        # Style
+        border_color = "#bbbbbb"
+        fill_color = "#ffffff"
+        text_gray = "#888888"
+
+        # Affichage des jours et dates (ligne du haut)
         for i, date in enumerate(week_dates):
-            self.canvas.create_text(60 + i*slot_width + slot_width//2 - 5, 10, text=date.strftime("%A"), font=("Segoe UI", 10, "bold"), fill="#ffffff", anchor="n")
-            self.canvas.create_text(60 + i*slot_width + slot_width//2 - 5, 30, text=date.strftime("%d/%m"), font=("Segoe UI", 9), fill="#ffffff", anchor="n")
+            x_center = 60 + i*slot_width + slot_width//2 - 5
+            # Rectangle pour le jour+date
+            self.canvas.create_rectangle(
+                x_center-45, 5, x_center+45, 55,
+                fill=fill_color, outline=border_color, width=2
+            )
+            # Jour (sans emoji)
+            self.canvas.create_text(
+                x_center, 18,
+                text=date.strftime("%A"),
+                font=("Segoe UI", 10, "bold"),
+                fill=text_gray
+            )
+            # Date
+            self.canvas.create_text(
+                x_center, 38,
+                text=date.strftime("%d/%m"),
+                font=("Segoe UI", 9),
+                fill=text_gray
+            )
 
         def make_bindings(r, d, t):
             def on_enter(event): self.canvas.itemconfig(r, fill="#e6f7ff")
@@ -94,9 +153,21 @@ class WeeklyPlanner(tk.Frame):
             self.canvas.tag_bind(r, "<ButtonPress-1>", on_press)
             self.canvas.tag_bind(r, "<ButtonRelease-1>", on_release)
 
+        # Affichage des heures (colonne de gauche)
         for row, minutes in enumerate(range(12*60, 21*60 + 30, 30)):
             t = time(minutes//60, minutes%60)
-            self.canvas.create_text(30, 60 + row*slot_height, text=t.strftime("%H:%M"), fill="#ffffff")
+            y_center = 60 + row*slot_height
+            # Rectangle pour l'heure
+            self.canvas.create_rectangle(
+                5, y_center-15, 55, y_center+15,
+                fill=fill_color, outline=border_color, width=2
+            )
+            self.canvas.create_text(
+                30, y_center,
+                text=t.strftime("%H:%M"),
+                font=("Segoe UI", 10, "bold"),
+                fill=text_gray
+            )
             for col, date in enumerate(week_dates):
                 x, y = 60 + col*slot_width, 60 + row*slot_height
                 rect = self.canvas.create_rectangle(x, y, x+slot_width-10, y+slot_height, fill="#ffffff", outline="#cccccc", width=1)
@@ -106,7 +177,16 @@ class WeeklyPlanner(tk.Frame):
 
                 self.slots[(date, t)] = rect
         # Affiche "22:00" sous le dernier créneau
-        self.canvas.create_text(30, 60 + (row + 1)*slot_height, text="22:00", fill="#ffffff")
+        self.canvas.create_rectangle(
+            5, 60 + (row + 1)*slot_height - 15, 55, 60 + (row + 1)*slot_height + 15,
+            fill=fill_color, outline=border_color, width=2
+        )
+        self.canvas.create_text(
+            30, 60 + (row + 1)*slot_height,
+            text="22:00",
+            font=("Segoe UI", 10, "bold"),
+            fill=text_gray
+        )
 
         self.draw_trainings()
 
@@ -122,12 +202,27 @@ class WeeklyPlanner(tk.Frame):
             item = self.canvas.create_rectangle(
                 x, y, x+110, y+h,
                 fill=color,
-                outline="#4a5a6a",  # bleu-gris foncé, sobre et bien visible
+                outline="#4a5a6a",
                 width=1.5
             )
             text = self.canvas.create_text(x+5, y+5, anchor="nw", text=f"{t.category}\n{t.description}", font=("Segoe UI", 9), fill="#000000")
-            self.canvas.tag_bind(item, "<Button-3>", lambda e, t=t: self.open_edit_popup(t))
-            self.canvas.tag_bind(item, "<Double-Button-1>", lambda e, t=t: self.open_edit_popup(t))
+
+            # Effet de survol et curseur main + simple clic pour éditer
+            def on_enter(event, item=item):
+                self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                self.canvas.config(cursor="hand2")
+            def on_leave(event, item=item):
+                self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
+                self.canvas.config(cursor="")
+            def on_click(event, t=t):
+                self.open_edit_popup(t)
+
+            self.canvas.tag_bind(item, "<Enter>", on_enter)
+            self.canvas.tag_bind(item, "<Leave>", on_leave)
+            self.canvas.tag_bind(item, "<Button-1>", on_click)
+            self.canvas.tag_bind(text, "<Enter>", on_enter)
+            self.canvas.tag_bind(text, "<Leave>", on_leave)
+            self.canvas.tag_bind(text, "<Button-1>", on_click)
 
     def add_popup(self, date, start_time):
         popup = tk.Toplevel(self)
