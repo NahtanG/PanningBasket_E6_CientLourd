@@ -13,18 +13,22 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 def wrap_text(text, width=22):
-    """Retourne le texte coupé en lignes de longueur maximale 'width'."""
-    words = text.split()
+    """Coupe le texte en lignes de longueur maximale 'width', en conservant les retours à la ligne utilisateur."""
     lines = []
-    current = ""
-    for word in words:
-        if len(current + " " + word) <= width:
-            current = (current + " " + word).strip()
-        else:
+    for paragraph in text.splitlines():
+        words = paragraph.split()
+        current = ""
+        for word in words:
+            if len(current + " " + word) <= width:
+                current = (current + " " + word).strip()
+            else:
+                lines.append(current)
+                current = word
+        if current:
             lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
+        # Ajoute une ligne vide pour chaque saut de ligne utilisateur (sauf à la fin)
+        if paragraph != text.splitlines()[-1]:
+            lines.append("")
     return "\n".join(lines)
 
 class WeeklyPlanner(tk.Frame):
