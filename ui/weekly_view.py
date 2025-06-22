@@ -6,22 +6,51 @@ from db.database import get_trainings_for_week, add_training, delete_training, u
 from models.training import Training
 from utils.date_utils import get_week_dates
 from exporter.pdf_exporter import export_trainings_to_pdf
+import hashlib
+import colorsys
+from datetime import datetime
+import calendar
 
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.current_date = datetime.now().date()
+        self.category_colors = {}  # Ajouté
         self.init_ui()
+
+    def get_category_color(self, category):
+        """Retourne une couleur pastel unique pour chaque catégorie."""
+        if category not in self.category_colors:
+            # Hash la catégorie pour obtenir une couleur stable
+            h = int(hashlib.md5(category.encode()).hexdigest(), 16)
+            hue = (h % 360) / 360.0
+            lightness = 0.8
+            saturation = 0.5
+            r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+            hex_color = '#%02x%02x%02x' % (int(r*255), int(g*255), int(b*255))
+            self.category_colors[category] = hex_color
+        return self.category_colors[category]
 
     def init_ui(self):
         self.header = tk.Frame(self)
         self.header.pack(fill="x")
+
+        self.header.grid_columnconfigure(0, weight=1)
+        self.header.grid_columnconfigure(1, weight=2)
+        self.header.grid_columnconfigure(2, weight=1)
+
         self.prev_btn = tk.Button(self.header, text="<", command=self.prev_week)
-        self.prev_btn.pack(side="left")
-        self.export_btn = tk.Button(self.header, text="Exporter PDF", command=self.export_pdf)
-        self.export_btn.pack(side="left")
-        self.next_btn = tk.Button(self.header, text=">", command=self.next_week)
-        self.next_btn.pack(side="right")
+        self.prev_btn.grid(row=0, column=0, sticky="w", padx=10)
+
+        self.month_year_label = tk.Label(self.header, font=("Segoe UI", 14, "bold"))
+        self.month_year_label.grid(row=0, column=1, sticky="nsew", padx=10)
+
+        right_btns = tk.Frame(self.header)
+        self.export_btn = tk.Button(right_btns, text="Exporter PDF", command=self.export_pdf)
+        self.export_btn.pack(side="left", padx=5)
+        self.next_btn = tk.Button(right_btns, text=">", command=self.next_week)
+        self.next_btn.pack(side="left", padx=5)
+        right_btns.grid(row=0, column=2, sticky="e", padx=10)
 
         self.canvas_frame = tk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True)
@@ -37,6 +66,11 @@ class WeeklyPlanner(tk.Frame):
 
     def draw_table(self):
         self.canvas.delete("all")
+
+        # Met à jour le label mois/année
+        month_name = calendar.month_name[self.current_date.month].capitalize()
+        year = self.current_date.year
+        self.month_year_label.config(text=f"{month_name} {year}")
 
         self.slots = {}
         start_time = time(8, 0)
@@ -83,7 +117,14 @@ class WeeklyPlanner(tk.Frame):
             row = ((t.start_time.hour - 12) * 2) + (1 if t.start_time.minute == 30 else 0)
             x, y = 60 + col*120, 60 + row*40
             h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * 40)
-            item = self.canvas.create_rectangle(x, y, x+110, y+h, fill="#cfe2ff", outline="#007bff", width=2)
+            color = self.get_category_color(t.category)
+            # Couleur de contour plus sobre
+            item = self.canvas.create_rectangle(
+                x, y, x+110, y+h,
+                fill=color,
+                outline="#4a5a6a",  # bleu-gris foncé, sobre et bien visible
+                width=1.5
+            )
             text = self.canvas.create_text(x+5, y+5, anchor="nw", text=f"{t.category}\n{t.description}", font=("Segoe UI", 9), fill="#000000")
             self.canvas.tag_bind(item, "<Button-3>", lambda e, t=t: self.open_edit_popup(t))
             self.canvas.tag_bind(item, "<Double-Button-1>", lambda e, t=t: self.open_edit_popup(t))
