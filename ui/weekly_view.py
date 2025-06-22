@@ -33,7 +33,7 @@ def wrap_text(text, width=22):
 
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
-        super().__init__(master)
+        super().__init__(master, bg="#f7f7f9")  # Forcer fond clair
         self.current_date = datetime.now().date()
         self.category_colors = {}
         self.init_ui()
@@ -52,6 +52,10 @@ class WeeklyPlanner(tk.Frame):
         return self.category_colors[category]
 
     def init_ui(self):
+        # Forcer le fond clair partout
+        self.master.configure(bg="#f7f7f9")
+        self.configure(bg="#f7f7f9")
+
         self.header = tk.Frame(self, bg="#f7f7f9")
         self.header.pack(fill="x")
 
@@ -135,15 +139,23 @@ class WeeklyPlanner(tk.Frame):
         search_frame.grid(row=0, column=3, sticky="e", padx=(10, 20))
         tk.Label(search_frame, text="🔍", bg="#f7f7f9", fg="#4a5a6a", font=("Segoe UI", 12)).pack(side="left")
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_frame, textvariable=self.search_var, width=18, font=("Segoe UI", 10))
+        search_entry = tk.Entry(
+            search_frame,
+            textvariable=self.search_var,
+            width=18,
+            font=("Segoe UI", 10),
+            bg="#ffffff",      # <-- Force le fond blanc
+            fg="#222222",      # <-- Texte foncé pour la lisibilité
+            insertbackground="#222222"  # <-- Curseur foncé
+        )
         search_entry.pack(side="left", padx=2)
         search_entry.bind("<KeyRelease>", lambda e: self.draw_table())
         # --- FIN BARRE DE RECHERCHE ---
 
-        self.canvas_frame = tk.Frame(self)
+        self.canvas_frame = tk.Frame(self, bg="#f7f7f9")
         self.canvas_frame.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(self.canvas_frame, width=1000, height=960)
+        self.canvas = tk.Canvas(self.canvas_frame, width=1000, height=960, bg="#f7f7f9", highlightthickness=0)
         self.canvas.pack(side="left", fill="both", expand=True)
 
         self.master.geometry("980x960")
@@ -268,8 +280,10 @@ class WeeklyPlanner(tk.Frame):
                     x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
                 )
                 # Bindings pour l'interaction
-                def on_enter(event, item=rect):
+                def on_enter(event, item=rect, txt=txt):
                     self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                    self.canvas.tag_raise(item)
+                    self.canvas.tag_raise(txt)
                     self.canvas.config(cursor="hand2")
                 def on_leave(event, item=rect):
                     self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
@@ -334,8 +348,10 @@ class WeeklyPlanner(tk.Frame):
                 txt = self.canvas.create_text(
                     x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
                 )
-                def on_enter(event, item=rect):
+                def on_enter(event, item=rect, txt=txt):
                     self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                    self.canvas.tag_raise(item)
+                    self.canvas.tag_raise(txt)
                     self.canvas.config(cursor="hand2")
                 def on_leave(event, item=rect):
                     self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
