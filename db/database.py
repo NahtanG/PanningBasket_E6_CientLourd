@@ -53,3 +53,8 @@ def update_training(t: Training):
     cursor.execute("UPDATE trainings SET category=?, description=?, date=?, start_time=?, end_time=? WHERE id = ?",
                    (t.category, t.description, t.date.isoformat(), t.start_time.strftime("%H:%M"), t.end_time.strftime("%H:%M"), t.id))
     conn.commit()
+
+def get_all_categories():
+    cursor.execute("SELECT DISTINCT category FROM trainings ORDER BY category ASC")
+    rows = cursor.fetchall()
+    return [row[0] for row in rows]
