@@ -33,6 +33,17 @@ conda activate tkinter
 python main.py
 ```
 
+> ℹ️ **Compatibilité multiplateforme**  
+> Le fichier [`env.yml`](./env.yml) fonctionne aussi bien sur **Windows**, **macOS** et **Linux** avec Anaconda ou Miniconda.
+>
+> Pour créer l’environnement sur n’importe quel système :
+>
+> ```bash
+> conda env create -f env.yml
+> conda activate tkinter
+> python main.py.
+> ```
+
 ---
 
 ## 📂 Structure du projet
