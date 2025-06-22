@@ -12,8 +12,15 @@ import calendar
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-def wrap_text(text, width=22):
-    """Coupe le texte en lignes de longueur maximale 'width', en conservant les retours à la ligne utilisateur."""
+def wrap_text(text, width=22, max_lines=None, force_single_line=False):
+    """
+    Coupe le texte en lignes de longueur maximale 'width', en conservant les retours à la ligne utilisateur
+    sauf si force_single_line=True (dans ce cas, tout est sur une seule ligne).
+    Si max_lines est défini, coupe à ce nombre de lignes et ajoute '...' si besoin.
+    """
+    if force_single_line:
+        # Remplace tous les retours à la ligne par des espaces
+        text = text.replace('\n', ' ')
     lines = []
     for paragraph in text.splitlines():
         words = paragraph.split()
@@ -26,14 +33,17 @@ def wrap_text(text, width=22):
                 current = word
         if current:
             lines.append(current)
-        # Ajoute une ligne vide pour chaque saut de ligne utilisateur (sauf à la fin)
-        if paragraph != text.splitlines()[-1]:
+        if not force_single_line and paragraph != text.splitlines()[-1]:
             lines.append("")
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        if lines:
+            lines[-1] = lines[-1].rstrip() + "..."
     return "\n".join(lines)
 
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
-        super().__init__(master, bg="#f7f7f9")  # Forcer fond clair
+        super().__init__(master, bg="#f7f7f9")
         self.current_date = datetime.now().date()
         self.category_colors = {}
         self.init_ui()
@@ -52,7 +62,6 @@ class WeeklyPlanner(tk.Frame):
         return self.category_colors[category]
 
     def init_ui(self):
-        # Forcer le fond clair partout
         self.master.configure(bg="#f7f7f9")
         self.configure(bg="#f7f7f9")
 
@@ -63,7 +72,7 @@ class WeeklyPlanner(tk.Frame):
         self.header.grid_columnconfigure(1, weight=2)
         self.header.grid_columnconfigure(2, weight=1)
         self.header.grid_columnconfigure(3, weight=2)
-        self.header.grid_columnconfigure(4, weight=1)  # Pour le bouton stats
+        self.header.grid_columnconfigure(4, weight=1)
 
         nav_btn_style = {
             "font": ("Segoe UI", 14, "bold"),
@@ -113,7 +122,6 @@ class WeeklyPlanner(tk.Frame):
         self.next_btn.pack(side="left", padx=5)
         right_btns.grid(row=0, column=2, sticky="e", padx=10)
 
-        # --- BOUTON STATISTIQUES ---
         self.stats_btn = tk.Button(
             self.header,
             text="📊 Statistiques",
@@ -132,7 +140,6 @@ class WeeklyPlanner(tk.Frame):
             command=self.show_stats_popup
         )
         self.stats_btn.grid(row=0, column=4, sticky="e", padx=(0, 10))
-        # --- FIN BOUTON STATISTIQUES ---
 
         # --- BARRE DE RECHERCHE ---
         search_frame = tk.Frame(self.header, bg="#f7f7f9")
@@ -144,13 +151,12 @@ class WeeklyPlanner(tk.Frame):
             textvariable=self.search_var,
             width=18,
             font=("Segoe UI", 10),
-            bg="#ffffff",      # <-- Force le fond blanc
-            fg="#222222",      # <-- Texte foncé pour la lisibilité
-            insertbackground="#222222"  # <-- Curseur foncé
+            bg="#ffffff",
+            fg="#222222",
+            insertbackground="#222222"
         )
         search_entry.pack(side="left", padx=2)
         search_entry.bind("<KeyRelease>", lambda e: self.draw_table())
-        # --- FIN BARRE DE RECHERCHE ---
 
         self.canvas_frame = tk.Frame(self, bg="#f7f7f9")
         self.canvas_frame.pack(fill="both", expand=True)
@@ -184,27 +190,22 @@ class WeeklyPlanner(tk.Frame):
         self.slots = {}
         week_dates = get_week_dates(self.current_date)
 
-        # Style
         border_color = "#bbbbbb"
         fill_color = "#ffffff"
         text_gray = "#888888"
 
-        # Affichage des jours et dates (ligne du haut)
         for i, date in enumerate(week_dates):
             x_center = 60 + i*slot_width + slot_width//2 - 5
-            # Rectangle pour le jour+date
             self.canvas.create_rectangle(
                 x_center-45, 5, x_center+45, 55,
                 fill=fill_color, outline=border_color, width=2
             )
-            # Jour (sans emoji)
             self.canvas.create_text(
                 x_center, 18,
                 text=date.strftime("%A"),
                 font=("Segoe UI", 10, "bold"),
                 fill=text_gray
             )
-            # Date
             self.canvas.create_text(
                 x_center, 38,
                 text=date.strftime("%d/%m"),
@@ -217,17 +218,14 @@ class WeeklyPlanner(tk.Frame):
             def on_leave(event): self.canvas.itemconfig(r, fill="#ffffff")
             def on_press(event): self.canvas.itemconfig(r, fill="#b3e5fc")
             def on_release(event): self.canvas.itemconfig(r, fill="#e6f7ff"); self.add_popup(d, t)
-
             self.canvas.tag_bind(r, "<Enter>", on_enter)
             self.canvas.tag_bind(r, "<Leave>", on_leave)
             self.canvas.tag_bind(r, "<ButtonPress-1>", on_press)
             self.canvas.tag_bind(r, "<ButtonRelease-1>", on_release)
 
-        # Affichage des heures (colonne de gauche)
         for row, minutes in enumerate(range(12*60, 21*60 + 30, 30)):
             t = time(minutes//60, minutes%60)
             y_center = 60 + row*slot_height
-            # Rectangle pour l'heure
             self.canvas.create_rectangle(
                 5, y_center-15, 55, y_center+15,
                 fill=fill_color, outline=border_color, width=2
@@ -242,11 +240,8 @@ class WeeklyPlanner(tk.Frame):
                 x, y = 60 + col*slot_width, 60 + row*slot_height
                 rect = self.canvas.create_rectangle(x, y, x+slot_width-10, y+slot_height, fill="#ffffff", outline="#cccccc", width=1)
                 self.canvas.create_line(x, y, x+slot_width-10, y, fill="#dddddd")
-
                 make_bindings(rect, date, t)
-
                 self.slots[(date, t)] = rect
-        # Affiche "22:00" sous le dernier créneau
         self.canvas.create_rectangle(
             5, 60 + (row + 1)*slot_height - 15, 55, 60 + (row + 1)*slot_height + 15,
             fill=fill_color, outline=border_color, width=2
@@ -258,19 +253,40 @@ class WeeklyPlanner(tk.Frame):
             fill=text_gray
         )
 
-        self.draw_trainings(fade=getattr(self, "_fade_events", False), slot_width=slot_width, slot_height=slot_height)
-        self._fade_events = False  # reset après usage
+        self.draw_trainings(
+            fade=getattr(self, "_fade_events", False),
+            slot_width=slot_width,
+            slot_height=slot_height
+        )
+        self._fade_events = False
 
     def fade_in_events(self, events_data, slot_width, slot_height, steps=10, delay=20):
-        """
-        Affiche les événements avec un effet de fondu.
-        events_data : liste de tuples (x, y, h, color, outline, text, t)
-        """
+        # --- Ajout du wrapping dynamique ---
+        if slot_width < 80:
+            wrap_chars = 10
+            force_single_line = True
+            max_lines = 1
+        elif slot_width < 120:
+            wrap_chars = 15
+            force_single_line = False
+            max_lines = 2
+        else:
+            wrap_chars = 22
+            force_single_line = False
+            max_lines = 4
+
+        min_font = 7
+        max_font = 11
+        font_size = max(min_font, min(max_font, int((slot_width-10) / 10)))
+        event_font = ("Segoe UI", font_size)
+        # --- Fin ajout wrapping dynamique ---
+
         for step in range(1, steps + 1):
             alpha = step / steps
             for event in events_data:
                 x, y, h, color, outline, text, t = event
-                # Calcul d'une couleur intermédiaire (blanc -> couleur cible)
+                # Wrapping dynamique pour affichage
+                text = f"{t.category}\n{wrap_text(t.description, width=wrap_chars, max_lines=max_lines, force_single_line=force_single_line)}"
                 r1, g1, b1 = self.winfo_rgb("#ffffff")
                 r2, g2, b2 = self.winfo_rgb(color)
                 r = int(r1 + (r2 - r1) * alpha) // 256
@@ -285,9 +301,8 @@ class WeeklyPlanner(tk.Frame):
                     tags="event_fade"
                 )
                 txt = self.canvas.create_text(
-                    x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
+                    x+5, y+5, anchor="nw", text=text, font=event_font, fill="#000000", tags="event_fade"
                 )
-                # Bindings pour l'interaction
                 def on_enter(event, item=rect, txt=txt):
                     self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
                     self.canvas.tag_raise(item)
@@ -306,7 +321,6 @@ class WeeklyPlanner(tk.Frame):
                 self.canvas.tag_bind(txt, "<Button-1>", on_click)
             self.canvas.update()
             self.after(delay)
-            # Efface les rectangles/textes de l'étape précédente sauf à la dernière étape
             if step != steps:
                 self.canvas.delete("event_fade")
 
@@ -325,53 +339,82 @@ class WeeklyPlanner(tk.Frame):
         week_dates_set = set(week_dates)
         trainings = [t for t in trainings_month if t.date in week_dates_set]
 
-        # Prépare les données des événements à afficher
-        events_data = []
+        # Paramètres de police
+        min_font = 7
+        max_font = 11
+        font_size = max(min_font, min(max_font, int((slot_width-10) / 10)))
+        event_font = ("Segoe UI", font_size)
+
+        # Largeur de texte pour le wrapping
+        if slot_width < 80:
+            wrap_chars = 10
+        elif slot_width < 120:
+            wrap_chars = 15
+        else:
+            wrap_chars = 22
+
         for t in trainings:
-            col = (t.date.weekday())
+            col = t.date.weekday()
+            # Calcule la position y en fonction de l'heure de début
             row = ((t.start_time.hour - 12) * 2) + (1 if t.start_time.minute == 30 else 0)
-            x, y = 60 + col*slot_width, 60 + row*slot_height
-            h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * slot_height)
+            x = 60 + col * slot_width
+            y = 60 + row * slot_height
+
+            # Hauteur "horaire" (durée de l'événement)
+            duration_slots = ((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30)
+            h_time = max(1, duration_slots) * slot_height
+
+            # Texte complet wrappé (catégorie + description)
+            desc_wrapped = wrap_text(t.description, width=wrap_chars, max_lines=None, force_single_line=False)
+            nb_desc_lines = desc_wrapped.count('\n') + 1
+            h_text = (nb_desc_lines + 1) * (font_size + 2) + 10  # +1 pour la catégorie
+            h = max(h_time, h_text)
+
             color = self.get_category_color(t.category)
             outline = "#4a5a6a"
-            # Utilise wrap_text pour la description
-            text = f"{t.category}\n{wrap_text(t.description)}"
-            events_data.append((x, y, h, color, outline, text, t))
 
-        # Efface uniquement les anciens événements (pas la grille)
-        self.canvas.delete("event_fade")
-        if fade:
-            self.fade_in_events(events_data, slot_width, slot_height)
-        else:
-            # Affichage direct sans effet
-            for event in events_data:
-                x, y, h, color, outline, text, t = event
-                rect = self.canvas.create_rectangle(
-                    x, y, x+slot_width-10, y+h,
-                    fill=color,
-                    outline=outline,
-                    width=1.5,
-                    tags="event_fade"
-                )
-                txt = self.canvas.create_text(
-                    x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
-                )
-                def on_enter(event, item=rect, txt=txt):
-                    self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
-                    self.canvas.tag_raise(item)
-                    self.canvas.tag_raise(txt)
-                    self.canvas.config(cursor="hand2")
-                def on_leave(event, item=rect):
-                    self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
-                    self.canvas.config(cursor="")
-                def on_click(event, t=t):
-                    self.open_edit_popup(t)
-                self.canvas.tag_bind(rect, "<Enter>", on_enter)
-                self.canvas.tag_bind(rect, "<Leave>", on_leave)
-                self.canvas.tag_bind(rect, "<Button-1>", on_click)
-                self.canvas.tag_bind(txt, "<Enter>", on_enter)
-                self.canvas.tag_bind(txt, "<Leave>", on_leave)
-                self.canvas.tag_bind(txt, "<Button-1>", on_click)
+            rect = self.canvas.create_rectangle(
+                x, y, x+slot_width-10, y+h,
+                fill=color,
+                outline=outline,
+                width=1.5,
+                tags="event_fade"
+            )
+
+            # Catégorie centrée, en gras
+            self.canvas.create_text(
+                x + (slot_width-10)//2, y + 8,
+                text=t.category,
+                font=("Segoe UI", font_size, "bold"),
+                fill="#2d3a4a",
+                anchor="n",
+                tags="event_fade"
+            )
+
+            # Description alignée à gauche sous la catégorie
+            self.canvas.create_text(
+                x+8, y + font_size + 16,
+                text=desc_wrapped,
+                font=("Segoe UI", font_size),
+                fill="#222222",
+                anchor="nw",
+                tags="event_fade"
+            )
+
+            def on_enter(event, item=rect):
+                self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                self.canvas.config(cursor="hand2")
+
+            def on_leave(event, item=rect):
+                self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
+                self.canvas.config(cursor="")
+
+            def on_click(event, t=t):
+                self.open_edit_popup(t)
+
+            self.canvas.tag_bind(rect, "<Enter>", on_enter)
+            self.canvas.tag_bind(rect, "<Leave>", on_leave)
+            self.canvas.tag_bind(rect, "<Button-1>", on_click)
 
     def add_popup(self, date, start_time):
         popup = tk.Toplevel(self)
