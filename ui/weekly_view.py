@@ -327,7 +327,7 @@ class WeeklyPlanner(tk.Frame):
     def add_popup(self, date, start_time):
         popup = tk.Toplevel(self)
         popup.title("Ajouter un entraînement")
-        popup.geometry("320x280")
+        popup.geometry("320x320")
         popup.grab_set()
 
         tk.Label(popup, text="Catégorie :").pack(pady=(10, 0))
@@ -335,8 +335,9 @@ class WeeklyPlanner(tk.Frame):
         category_entry.pack(pady=5)
 
         tk.Label(popup, text="Description :").pack(pady=(10, 0))
-        description_entry = tk.Entry(popup)
-        description_entry.pack(pady=5)
+        # Bloc texte multi-ligne pour la description
+        description_text = tk.Text(popup, height=4, width=32, wrap="word")
+        description_text.pack(pady=5)
 
         tk.Label(popup, text="Heure de fin :").pack(pady=(10, 0))
         
@@ -358,7 +359,7 @@ class WeeklyPlanner(tk.Frame):
 
         def submit():
             category = category_entry.get()
-            description = description_entry.get()
+            description = description_text.get("1.0", "end").strip()
             try:
                 end_hour, end_min = map(int, end_time_var.get().split(":"))
                 end_time = time(end_hour, end_min)
@@ -455,7 +456,7 @@ class WeeklyPlanner(tk.Frame):
     def open_edit_popup(self, training):
         popup = tk.Toplevel(self)
         popup.title("Modifier l'entraînement")
-        popup.geometry("340x350")
+        popup.geometry("330x380")
         popup.grab_set()
 
         tk.Label(popup, text="Catégorie :").pack(pady=(10, 0))
@@ -464,9 +465,10 @@ class WeeklyPlanner(tk.Frame):
         category_entry.pack(pady=5)
 
         tk.Label(popup, text="Description :").pack(pady=(10, 0))
-        description_entry = tk.Entry(popup)
-        description_entry.insert(0, training.description)
-        description_entry.pack(pady=5)
+        # Bloc texte multi-ligne pour la description
+        description_text = tk.Text(popup, height=4, width=32, wrap="word")
+        description_text.insert("1.0", training.description)
+        description_text.pack(pady=5)
 
         tk.Label(popup, text="Heure de début :").pack(pady=(10, 0))
         start_var = tk.StringVar(popup)
@@ -510,7 +512,7 @@ class WeeklyPlanner(tk.Frame):
         def save():
             try:
                 category = category_entry.get()
-                description = description_entry.get()
+                description = description_text.get("1.0", "end").strip()
                 start_h, start_m = map(int, start_var.get().split(":"))
                 end_h, end_m = map(int, end_var.get().split(":"))
                 start_time_val = time(start_h, start_m)
