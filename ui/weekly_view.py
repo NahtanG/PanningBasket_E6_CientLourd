@@ -382,7 +382,7 @@ class WeeklyPlanner(tk.Frame):
             )
 
             # Catégorie centrée, en gras
-            self.canvas.create_text(
+            cat_text_id = self.canvas.create_text(
                 x + (slot_width-10)//2, y + 8,
                 text=t.category,
                 font=("Segoe UI", font_size, "bold"),
@@ -392,7 +392,7 @@ class WeeklyPlanner(tk.Frame):
             )
 
             # Description alignée à gauche sous la catégorie
-            self.canvas.create_text(
+            desc_text_id = self.canvas.create_text(
                 x+8, y + font_size + 16,
                 text=desc_wrapped,
                 font=("Segoe UI", font_size),
@@ -400,6 +400,8 @@ class WeeklyPlanner(tk.Frame):
                 anchor="nw",
                 tags="event_fade"
             )
+
+            elements = [rect, cat_text_id, desc_text_id]
 
             def on_enter(event, item=rect):
                 self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
@@ -412,9 +414,11 @@ class WeeklyPlanner(tk.Frame):
             def on_click(event, t=t):
                 self.open_edit_popup(t)
 
-            self.canvas.tag_bind(rect, "<Enter>", on_enter)
-            self.canvas.tag_bind(rect, "<Leave>", on_leave)
-            self.canvas.tag_bind(rect, "<Button-1>", on_click)
+            # Lier les événements à tous les éléments de l'événement
+            for el in elements:
+                self.canvas.tag_bind(el, "<Enter>", on_enter)
+                self.canvas.tag_bind(el, "<Leave>", on_leave)
+                self.canvas.tag_bind(el, "<Button-1>", on_click)
 
     def add_popup(self, date, start_time):
         popup = tk.Toplevel(self)
