@@ -155,17 +155,27 @@ class WeeklyPlanner(tk.Frame):
         self.canvas_frame = tk.Frame(self, bg="#f7f7f9")
         self.canvas_frame.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(self.canvas_frame, width=1000, height=960, bg="#f7f7f9", highlightthickness=0)
+        self.canvas = tk.Canvas(self.canvas_frame, bg="#f7f7f9", highlightthickness=0)
         self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
 
         self.master.geometry("980x960")
+        self.master.minsize(800, 600)
         self.master.lift()
         self.master.attributes("-topmost", True)
         self.master.after(0, lambda: self.master.attributes("-topmost", False))
         self.draw_table()
 
+    def on_canvas_resize(self, event):
+        self.draw_table()
+
     def draw_table(self):
         self.canvas.delete("all")
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        slot_width = max(60, (canvas_width - 60) // 7)
+        slot_height = max(20, (canvas_height - 60) // 20)
+
         month_name = calendar.month_name[self.current_date.month].capitalize()
         year = self.current_date.year
         week_number = self.current_date.isocalendar()[1]
@@ -173,8 +183,6 @@ class WeeklyPlanner(tk.Frame):
 
         self.slots = {}
         week_dates = get_week_dates(self.current_date)
-        slot_height = 40
-        slot_width = 120
 
         # Style
         border_color = "#bbbbbb"
@@ -250,10 +258,10 @@ class WeeklyPlanner(tk.Frame):
             fill=text_gray
         )
 
-        self.draw_trainings(fade=getattr(self, "_fade_events", False))
+        self.draw_trainings(fade=getattr(self, "_fade_events", False), slot_width=slot_width, slot_height=slot_height)
         self._fade_events = False  # reset après usage
 
-    def fade_in_events(self, events_data, steps=10, delay=20):
+    def fade_in_events(self, events_data, slot_width, slot_height, steps=10, delay=20):
         """
         Affiche les événements avec un effet de fondu.
         events_data : liste de tuples (x, y, h, color, outline, text, t)
@@ -270,7 +278,7 @@ class WeeklyPlanner(tk.Frame):
                 b = int(b1 + (b2 - b1) * alpha) // 256
                 fade_color = f"#{r:02x}{g:02x}{b:02x}"
                 rect = self.canvas.create_rectangle(
-                    x, y, x+110, y+h,
+                    x, y, x+slot_width-10, y+h,
                     fill=fade_color,
                     outline=outline,
                     width=1.5,
@@ -302,7 +310,7 @@ class WeeklyPlanner(tk.Frame):
             if step != steps:
                 self.canvas.delete("event_fade")
 
-    def draw_trainings(self, fade=False):
+    def draw_trainings(self, fade=False, slot_width=120, slot_height=40):
         keyword = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
         year = self.current_date.year
         month = self.current_date.month
@@ -322,8 +330,8 @@ class WeeklyPlanner(tk.Frame):
         for t in trainings:
             col = (t.date.weekday())
             row = ((t.start_time.hour - 12) * 2) + (1 if t.start_time.minute == 30 else 0)
-            x, y = 60 + col*120, 60 + row*40
-            h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * 40)
+            x, y = 60 + col*slot_width, 60 + row*slot_height
+            h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * slot_height)
             color = self.get_category_color(t.category)
             outline = "#4a5a6a"
             # Utilise wrap_text pour la description
@@ -333,13 +341,13 @@ class WeeklyPlanner(tk.Frame):
         # Efface uniquement les anciens événements (pas la grille)
         self.canvas.delete("event_fade")
         if fade:
-            self.fade_in_events(events_data)
+            self.fade_in_events(events_data, slot_width, slot_height)
         else:
             # Affichage direct sans effet
             for event in events_data:
                 x, y, h, color, outline, text, t = event
                 rect = self.canvas.create_rectangle(
-                    x, y, x+110, y+h,
+                    x, y, x+slot_width-10, y+h,
                     fill=color,
                     outline=outline,
                     width=1.5,
@@ -590,12 +598,7 @@ class WeeklyPlanner(tk.Frame):
 
         # Statistiques
         nb_total = len(trainings)
-        week_dates = [get_week_dates(datetime(year, month, 1).date() + timedelta(days=7*i)) for i in range(5)]
-        week_counts = []
-        for week in week_dates:
-            week_set = set(week)
-            week_counts.append(len([t for t in trainings if t.date in week_set]))
-        # Répartition par catégorie
+        weeks_in_month = sorted(set(t.date.isocalendar()[1] for t in trainings))
         cat_counts = {}
         for t in trainings:
             cat_counts[t.category] = cat_counts.get(t.category, 0) + 1
@@ -603,39 +606,124 @@ class WeeklyPlanner(tk.Frame):
         # Création du popup stylisé
         popup = tk.Toplevel(self)
         popup.title("Statistiques du mois")
-        popup.geometry("400x600")
+        popup.geometry("420x650")
         popup.configure(bg="#f7f7f9")
         popup.grab_set()
 
-        tk.Label(popup, text=f"Statistiques – {calendar.month_name[month].capitalize()} {year}",
-                 font=("Segoe UI", 15, "bold"), bg="#f7f7f9", fg="#2d3a4a").pack(pady=(15, 5))
+        # Carte principale (effet carte blanche arrondie)
+        card = tk.Frame(popup, bg="#ffffff", bd=0, highlightthickness=0)
+        card.place(relx=0.5, rely=0.03, anchor="n", width=380, height=600)
 
-        # Texte résumé
-        resume = f"Nombre total de séances : {nb_total}\n"
-        # Semaine ISO
-        weeks_in_month = sorted(set(t.date.isocalendar()[1] for t in trainings))
-        resume += "Nombre de séances par semaine (ISO) :\n"
+        # Ombre portée (optionnel, effet simple)
+        # (Tkinter ne gère pas l'ombre nativement, mais le fond gris clair autour donne déjà un effet "carte")
+
+        # Titre principal
+        tk.Label(
+            card,
+            text=f"Statistiques – {calendar.month_name[month].capitalize()} {year}",
+            font=("Segoe UI", 16, "bold"),
+            bg="#ffffff",
+            fg="#222222"
+        ).pack(pady=(22, 10))
+
+        # Encadré résumé
+        resume_frame = tk.Frame(card, bg="#f4f6fa", bd=1, relief="solid", highlightbackground="#e0e4ea", highlightthickness=1)
+        resume_frame.pack(pady=(0, 18), padx=18, fill="x")
+
+        # Nombre total de séances
+        tk.Label(
+            resume_frame,
+            text="Nombre total de séances :",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f4f6fa",
+            fg="#222222",
+            anchor="w"
+        ).pack(anchor="w", pady=(10, 0), padx=12)
+        tk.Label(
+            resume_frame,
+            text=f"{nb_total}",
+            font=("Segoe UI", 12),
+            bg="#f4f6fa",
+            fg="#222222",
+            anchor="w"
+        ).pack(anchor="w", padx=12, pady=(0, 10))
+
+        # Séparateur
+        tk.Frame(resume_frame, bg="#e0e4ea", height=1).pack(fill="x", padx=8, pady=2)
+
+        # Nombre de séances par semaine (ISO)
+        tk.Label(
+            resume_frame,
+            text="Nombre de séances par semaine (ISO) :",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f4f6fa",
+            fg="#222222",
+            anchor="w"
+        ).pack(anchor="w", padx=12, pady=(6, 0))
         for week in weeks_in_month:
             count = sum(1 for t in trainings if t.date.isocalendar()[1] == week)
-            resume += f"  Semaine {week} : {count}\n"
-        resume += "\nRépartition par catégorie :\n"
+            tk.Label(
+                resume_frame,
+                text=f"  Semaine {week} : {count}",
+                font=("Segoe UI", 11),
+                bg="#f4f6fa",
+                fg="#222222",
+                anchor="w"
+            ).pack(anchor="w", padx=18)
+
+        # Séparateur
+        tk.Frame(resume_frame, bg="#e0e4ea", height=1).pack(fill="x", padx=8, pady=2)
+
+        # Répartition par catégorie
+        tk.Label(
+            resume_frame,
+            text="Répartition par catégorie :",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f4f6fa",
+            fg="#222222",
+            anchor="w"
+        ).pack(anchor="w", padx=12, pady=(6, 0))
         for cat, count in cat_counts.items():
-            resume += f"  {cat} : {count}\n"
+            tk.Label(
+                resume_frame,
+                text=f"  {cat} : {count}",
+                font=("Segoe UI", 11),
+                bg="#f4f6fa",
+                fg="#222222",
+                anchor="w"
+            ).pack(anchor="w", padx=18, pady=(0, 2))
 
-        tk.Label(popup, text=resume, font=("Segoe UI", 11), bg="#f7f7f9", justify="left", anchor="w").pack(pady=(0, 10), padx=20, anchor="w")
+        # Carte graphique
+        graph_card = tk.Frame(card, bg="#f4f6fa", bd=1, relief="solid", highlightbackground="#e0e4ea", highlightthickness=1)
+        graph_card.pack(pady=(0, 10), padx=18, fill="x")
 
-        # Graphique matplotlib (camembert)
         if cat_counts:
-            fig, ax = plt.subplots(figsize=(3.5, 3), dpi=100)
-            ax.pie(cat_counts.values(), labels=cat_counts.keys(), autopct='%1.0f%%', startangle=90, textprops={'fontsize': 9})
-            ax.set_title("Répartition par catégorie", fontsize=11)
-            fig.tight_layout()
-            canvas_fig = FigureCanvasTkAgg(fig, master=popup)
+            fig, ax = plt.subplots(figsize=(3.2, 2.5), dpi=100)
+            ax.pie(cat_counts.values(), labels=cat_counts.keys(), autopct='%1.0f%%', startangle=90, textprops={'fontsize': 9, 'color': '#222222'})
+            ax.set_title("Répartition par catégorie", fontsize=11, color="#222222")
+            fig.patch.set_facecolor('#f4f6fa')
+            canvas_fig = FigureCanvasTkAgg(fig, master=graph_card)
             canvas_fig.draw()
-            canvas_fig.get_tk_widget().pack(pady=5)
+            canvas_fig.get_tk_widget().pack(pady=10)
         else:
-            tk.Label(popup, text="Aucune donnée pour ce mois.", font=("Segoe UI", 11, "italic"), bg="#f7f7f9", fg="#888").pack(pady=20)
+            tk.Label(
+                graph_card,
+                text="Aucune donnée pour ce mois.",
+                font=("Segoe UI", 11, "italic"),
+                bg="#f4f6fa",
+                fg="#888888"
+            ).pack(pady=30)
 
         # Bouton fermer
-        tk.Button(popup, text="Fermer", command=popup.destroy, font=("Segoe UI", 10, "bold"),
-                  bg="#e0e4ea", fg="#2d3a4a", relief="flat", padx=12, pady=4, cursor="hand2").pack(pady=15)
+        tk.Button(
+            card,
+            text="Fermer",
+            command=popup.destroy,
+            font=("Segoe UI", 10, "bold"),
+            bg="#e0e4ea",
+            fg="#2d3a4a",
+            relief="flat",
+            padx=12,
+            pady=4,
+            cursor="hand2"
+        ).pack(pady=18)
