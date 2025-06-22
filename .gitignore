@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environnements virtuels
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Fichiers de configuration utilisateur
+*.DS_Store
+*.swp
+*.swo
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# SQLite DB (optionnel, si tu veux ignorer la base locale)
+# trainings.db
+
+# PDF exportés (optionnel, si tu veux ignorer les exports)
+*.pdf
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
