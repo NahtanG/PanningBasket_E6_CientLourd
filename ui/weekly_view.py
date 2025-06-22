@@ -10,12 +10,13 @@ import hashlib
 import colorsys
 from datetime import datetime
 import calendar
+import time as pytime
 
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.current_date = datetime.now().date()
-        self.category_colors = {}  # Ajouté
+        self.category_colors = {}
         self.init_ui()
 
     def get_category_color(self, category):
@@ -38,8 +39,8 @@ class WeeklyPlanner(tk.Frame):
         self.header.grid_columnconfigure(0, weight=1)
         self.header.grid_columnconfigure(1, weight=2)
         self.header.grid_columnconfigure(2, weight=1)
+        self.header.grid_columnconfigure(3, weight=2)
 
-        # Boutons navigation épurés
         nav_btn_style = {
             "font": ("Segoe UI", 14, "bold"),
             "bg": "#f7f7f9",
@@ -56,7 +57,6 @@ class WeeklyPlanner(tk.Frame):
         self.prev_btn = tk.Button(self.header, text="←", command=self.prev_week, **nav_btn_style)
         self.prev_btn.grid(row=0, column=0, sticky="w", padx=10)
 
-        # Mois/année stylisé
         self.month_year_label = tk.Label(
             self.header,
             font=("Segoe UI", 20, "bold"),
@@ -88,6 +88,16 @@ class WeeklyPlanner(tk.Frame):
         self.next_btn = tk.Button(right_btns, text="→", command=self.next_week, **nav_btn_style)
         self.next_btn.pack(side="left", padx=5)
         right_btns.grid(row=0, column=2, sticky="e", padx=10)
+
+        # --- BARRE DE RECHERCHE ---
+        search_frame = tk.Frame(self.header, bg="#f7f7f9")
+        search_frame.grid(row=0, column=3, sticky="e", padx=(10, 20))
+        tk.Label(search_frame, text="🔍", bg="#f7f7f9", fg="#4a5a6a", font=("Segoe UI", 12)).pack(side="left")
+        self.search_var = tk.StringVar()
+        search_entry = tk.Entry(search_frame, textvariable=self.search_var, width=18, font=("Segoe UI", 10))
+        search_entry.pack(side="left", padx=2)
+        search_entry.bind("<KeyRelease>", lambda e: self.draw_table())
+        # --- FIN BARRE DE RECHERCHE ---
 
         self.canvas_frame = tk.Frame(self)
         self.canvas_frame.pack(fill="both", expand=True)
@@ -188,41 +198,115 @@ class WeeklyPlanner(tk.Frame):
             fill=text_gray
         )
 
-        self.draw_trainings()
+        self.draw_trainings(fade=getattr(self, "_fade_events", False))
+        self._fade_events = False  # reset après usage
 
-    def draw_trainings(self):
-        trainings = get_trainings_for_week(self.current_date)
+    def fade_in_events(self, events_data, steps=10, delay=20):
+        """
+        Affiche les événements avec un effet de fondu.
+        events_data : liste de tuples (x, y, h, color, outline, text, t)
+        """
+        for step in range(1, steps + 1):
+            alpha = step / steps
+            for event in events_data:
+                x, y, h, color, outline, text, t = event
+                # Calcul d'une couleur intermédiaire (blanc -> couleur cible)
+                r1, g1, b1 = self.winfo_rgb("#ffffff")
+                r2, g2, b2 = self.winfo_rgb(color)
+                r = int(r1 + (r2 - r1) * alpha) // 256
+                g = int(g1 + (g2 - g1) * alpha) // 256
+                b = int(b1 + (b2 - b1) * alpha) // 256
+                fade_color = f"#{r:02x}{g:02x}{b:02x}"
+                rect = self.canvas.create_rectangle(
+                    x, y, x+110, y+h,
+                    fill=fade_color,
+                    outline=outline,
+                    width=1.5,
+                    tags="event_fade"
+                )
+                txt = self.canvas.create_text(
+                    x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
+                )
+                # Bindings pour l'interaction
+                def on_enter(event, item=rect):
+                    self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                    self.canvas.config(cursor="hand2")
+                def on_leave(event, item=rect):
+                    self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
+                    self.canvas.config(cursor="")
+                def on_click(event, t=t):
+                    self.open_edit_popup(t)
+                self.canvas.tag_bind(rect, "<Enter>", on_enter)
+                self.canvas.tag_bind(rect, "<Leave>", on_leave)
+                self.canvas.tag_bind(rect, "<Button-1>", on_click)
+                self.canvas.tag_bind(txt, "<Enter>", on_enter)
+                self.canvas.tag_bind(txt, "<Leave>", on_leave)
+                self.canvas.tag_bind(txt, "<Button-1>", on_click)
+            self.canvas.update()
+            self.after(delay)
+            # Efface les rectangles/textes de l'étape précédente sauf à la dernière étape
+            if step != steps:
+                self.canvas.delete("event_fade")
+
+    def draw_trainings(self, fade=False):
+        keyword = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
+        year = self.current_date.year
+        month = self.current_date.month
+
+        trainings_month = get_trainings_for_month(year, month, "toutes")
+        if keyword:
+            trainings_month = [
+                t for t in trainings_month
+                if keyword in t.description.lower() or keyword in t.category.lower()
+            ]
+        week_dates = get_week_dates(self.current_date)
+        week_dates_set = set(week_dates)
+        trainings = [t for t in trainings_month if t.date in week_dates_set]
+
+        # Prépare les données des événements à afficher
+        events_data = []
         for t in trainings:
             col = (t.date.weekday())
             row = ((t.start_time.hour - 12) * 2) + (1 if t.start_time.minute == 30 else 0)
             x, y = 60 + col*120, 60 + row*40
             h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * 40)
             color = self.get_category_color(t.category)
-            # Couleur de contour plus sobre
-            item = self.canvas.create_rectangle(
-                x, y, x+110, y+h,
-                fill=color,
-                outline="#4a5a6a",
-                width=1.5
-            )
-            text = self.canvas.create_text(x+5, y+5, anchor="nw", text=f"{t.category}\n{t.description}", font=("Segoe UI", 9), fill="#000000")
+            outline = "#4a5a6a"
+            text = f"{t.category}\n{t.description}"
+            events_data.append((x, y, h, color, outline, text, t))
 
-            # Effet de survol et curseur main + simple clic pour éditer
-            def on_enter(event, item=item):
-                self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
-                self.canvas.config(cursor="hand2")
-            def on_leave(event, item=item):
-                self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
-                self.canvas.config(cursor="")
-            def on_click(event, t=t):
-                self.open_edit_popup(t)
-
-            self.canvas.tag_bind(item, "<Enter>", on_enter)
-            self.canvas.tag_bind(item, "<Leave>", on_leave)
-            self.canvas.tag_bind(item, "<Button-1>", on_click)
-            self.canvas.tag_bind(text, "<Enter>", on_enter)
-            self.canvas.tag_bind(text, "<Leave>", on_leave)
-            self.canvas.tag_bind(text, "<Button-1>", on_click)
+        # Efface uniquement les anciens événements (pas la grille)
+        self.canvas.delete("event_fade")
+        if fade:
+            self.fade_in_events(events_data)
+        else:
+            # Affichage direct sans effet
+            for event in events_data:
+                x, y, h, color, outline, text, t = event
+                rect = self.canvas.create_rectangle(
+                    x, y, x+110, y+h,
+                    fill=color,
+                    outline=outline,
+                    width=1.5,
+                    tags="event_fade"
+                )
+                txt = self.canvas.create_text(
+                    x+5, y+5, anchor="nw", text=text, font=("Segoe UI", 9), fill="#000000", tags="event_fade"
+                )
+                def on_enter(event, item=rect):
+                    self.canvas.itemconfig(item, outline="#2d3a4a", width=2.5)
+                    self.canvas.config(cursor="hand2")
+                def on_leave(event, item=rect):
+                    self.canvas.itemconfig(item, outline="#4a5a6a", width=1.5)
+                    self.canvas.config(cursor="")
+                def on_click(event, t=t):
+                    self.open_edit_popup(t)
+                self.canvas.tag_bind(rect, "<Enter>", on_enter)
+                self.canvas.tag_bind(rect, "<Leave>", on_leave)
+                self.canvas.tag_bind(rect, "<Button-1>", on_click)
+                self.canvas.tag_bind(txt, "<Enter>", on_enter)
+                self.canvas.tag_bind(txt, "<Leave>", on_leave)
+                self.canvas.tag_bind(txt, "<Button-1>", on_click)
 
     def add_popup(self, date, start_time):
         popup = tk.Toplevel(self)
@@ -294,10 +378,12 @@ class WeeklyPlanner(tk.Frame):
 
     def prev_week(self):
         self.current_date -= timedelta(days=7)
+        self._fade_events = True
         self.draw_table()
 
     def next_week(self):
         self.current_date += timedelta(days=7)
+        self._fade_events = True
         self.draw_table()
 
     def export_pdf(self):
