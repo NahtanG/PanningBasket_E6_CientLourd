@@ -12,6 +12,21 @@ from datetime import datetime
 import calendar
 import time as pytime
 
+def wrap_text(text, width=22):
+    """Retourne le texte coupé en lignes de longueur maximale 'width'."""
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        if len(current + " " + word) <= width:
+            current = (current + " " + word).strip()
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return "\n".join(lines)
+
 class WeeklyPlanner(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
@@ -272,7 +287,8 @@ class WeeklyPlanner(tk.Frame):
             h = int(((t.end_time.hour - t.start_time.hour) * 2 + (t.end_time.minute - t.start_time.minute)//30) * 40)
             color = self.get_category_color(t.category)
             outline = "#4a5a6a"
-            text = f"{t.category}\n{t.description}"
+            # Utilise wrap_text pour la description
+            text = f"{t.category}\n{wrap_text(t.description)}"
             events_data.append((x, y, h, color, outline, text, t))
 
         # Efface uniquement les anciens événements (pas la grille)
