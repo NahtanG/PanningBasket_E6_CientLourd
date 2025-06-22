@@ -28,11 +28,22 @@ def export_trainings_to_pdf(trainings, filename):
         c.drawString(margin, y, date_str)
         c.drawString(margin + 100, y, hour_str)
         c.drawString(margin + 200, y, t.category)
-        c.drawString(margin + 300, y, t.description)
-        y -= 18
-        if y < margin:
-            c.showPage()
-            c.setFont("Helvetica", 11)
-            y = height - margin
+        # Gestion des retours à la ligne dans la description
+        desc_lines = t.description.splitlines() if t.description else [""]
+        first = True
+        for line in desc_lines:
+            c.drawString(margin + 300, y, line)
+            if first:
+                first = False
+            else:
+                c.drawString(margin, y, "")  # Pour garder l'alignement
+                c.drawString(margin + 100, y, "")
+                c.drawString(margin + 200, y, "")
+            y -= 14
+            if y < margin:
+                c.showPage()
+                c.setFont("Helvetica", 11)
+                y = height - margin
+        y -= 4  # Petit espace entre les séances
 
     c.save()

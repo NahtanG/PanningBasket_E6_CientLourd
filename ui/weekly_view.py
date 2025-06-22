@@ -8,9 +8,9 @@ from utils.date_utils import get_week_dates
 from exporter.pdf_exporter import export_trainings_to_pdf
 import hashlib
 import colorsys
-from datetime import datetime
 import calendar
-import time as pytime
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 def wrap_text(text, width=22):
     """Retourne le texte coupé en lignes de longueur maximale 'width'."""
@@ -55,6 +55,7 @@ class WeeklyPlanner(tk.Frame):
         self.header.grid_columnconfigure(1, weight=2)
         self.header.grid_columnconfigure(2, weight=1)
         self.header.grid_columnconfigure(3, weight=2)
+        self.header.grid_columnconfigure(4, weight=1)  # Pour le bouton stats
 
         nav_btn_style = {
             "font": ("Segoe UI", 14, "bold"),
@@ -104,6 +105,27 @@ class WeeklyPlanner(tk.Frame):
         self.next_btn.pack(side="left", padx=5)
         right_btns.grid(row=0, column=2, sticky="e", padx=10)
 
+        # --- BOUTON STATISTIQUES ---
+        self.stats_btn = tk.Button(
+            self.header,
+            text="📊 Statistiques",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f7f7f9",
+            fg="#4a5a6a",
+            activebackground="#e0e4ea",
+            activeforeground="#2d3a4a",
+            bd=0,
+            relief="flat",
+            padx=10,
+            pady=2,
+            cursor="hand2",
+            highlightthickness=0,
+            highlightbackground="#f7f7f9",
+            command=self.show_stats_popup
+        )
+        self.stats_btn.grid(row=0, column=4, sticky="e", padx=(0, 10))
+        # --- FIN BOUTON STATISTIQUES ---
+
         # --- BARRE DE RECHERCHE ---
         search_frame = tk.Frame(self.header, bg="#f7f7f9")
         search_frame.grid(row=0, column=3, sticky="e", padx=(10, 20))
@@ -128,11 +150,10 @@ class WeeklyPlanner(tk.Frame):
 
     def draw_table(self):
         self.canvas.delete("all")
-
-        # Met à jour le label mois/année
         month_name = calendar.month_name[self.current_date.month].capitalize()
         year = self.current_date.year
-        self.month_year_label.config(text=f"{month_name} {year}")
+        week_number = self.current_date.isocalendar()[1]
+        self.month_year_label.config(text=f"{month_name} {year} – Semaine {week_number}")
 
         self.slots = {}
         week_dates = get_week_dates(self.current_date)
@@ -540,3 +561,61 @@ class WeeklyPlanner(tk.Frame):
         tk.Button(btn_frame, text="Valider", command=save, relief="raised", bd=3, font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Supprimer", command=delete, relief="raised", bd=3, font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
         tk.Button(btn_frame, text="Annuler", command=popup.destroy, relief="raised", bd=3, font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
+
+    def show_stats_popup(self):
+        # Récupère les trainings du mois affiché
+        year = self.current_date.year
+        month = self.current_date.month
+        trainings = get_trainings_for_month(year, month, "toutes")
+
+        # Statistiques
+        nb_total = len(trainings)
+        week_dates = [get_week_dates(datetime(year, month, 1).date() + timedelta(days=7*i)) for i in range(5)]
+        week_counts = []
+        for week in week_dates:
+            week_set = set(week)
+            week_counts.append(len([t for t in trainings if t.date in week_set]))
+        # Répartition par catégorie
+        cat_counts = {}
+        for t in trainings:
+            cat_counts[t.category] = cat_counts.get(t.category, 0) + 1
+
+        # Création du popup stylisé
+        popup = tk.Toplevel(self)
+        popup.title("Statistiques du mois")
+        popup.geometry("400x600")
+        popup.configure(bg="#f7f7f9")
+        popup.grab_set()
+
+        tk.Label(popup, text=f"Statistiques – {calendar.month_name[month].capitalize()} {year}",
+                 font=("Segoe UI", 15, "bold"), bg="#f7f7f9", fg="#2d3a4a").pack(pady=(15, 5))
+
+        # Texte résumé
+        resume = f"Nombre total de séances : {nb_total}\n"
+        # Semaine ISO
+        weeks_in_month = sorted(set(t.date.isocalendar()[1] for t in trainings))
+        resume += "Nombre de séances par semaine (ISO) :\n"
+        for week in weeks_in_month:
+            count = sum(1 for t in trainings if t.date.isocalendar()[1] == week)
+            resume += f"  Semaine {week} : {count}\n"
+        resume += "\nRépartition par catégorie :\n"
+        for cat, count in cat_counts.items():
+            resume += f"  {cat} : {count}\n"
+
+        tk.Label(popup, text=resume, font=("Segoe UI", 11), bg="#f7f7f9", justify="left", anchor="w").pack(pady=(0, 10), padx=20, anchor="w")
+
+        # Graphique matplotlib (camembert)
+        if cat_counts:
+            fig, ax = plt.subplots(figsize=(3.5, 3), dpi=100)
+            ax.pie(cat_counts.values(), labels=cat_counts.keys(), autopct='%1.0f%%', startangle=90, textprops={'fontsize': 9})
+            ax.set_title("Répartition par catégorie", fontsize=11)
+            fig.tight_layout()
+            canvas_fig = FigureCanvasTkAgg(fig, master=popup)
+            canvas_fig.draw()
+            canvas_fig.get_tk_widget().pack(pady=5)
+        else:
+            tk.Label(popup, text="Aucune donnée pour ce mois.", font=("Segoe UI", 11, "italic"), bg="#f7f7f9", fg="#888").pack(pady=20)
+
+        # Bouton fermer
+        tk.Button(popup, text="Fermer", command=popup.destroy, font=("Segoe UI", 10, "bold"),
+                  bg="#e0e4ea", fg="#2d3a4a", relief="flat", padx=12, pady=4, cursor="hand2").pack(pady=15)
